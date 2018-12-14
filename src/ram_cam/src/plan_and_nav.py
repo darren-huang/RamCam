@@ -19,7 +19,7 @@ from geometry_msgs.msg import Vector3
 # takes 5 arguements
 # turtlebot_frame, board_grid_frame, board_block_frame, field_grid_frame, field_crate_frame
 # should be:
-# ar_marker_1 ar_marker_12 ar_marker_14 ar_marker_9 ar_marker_10
+# ar_marker_1 ar_marker_12 ar_marker_14 ar_marker_9 ar_marker_11
 
 
 
@@ -34,21 +34,22 @@ field_intervals = 30./100
 # tb_center_to_edge = 7./100
 # crate_center_to_edge = 11./100
 push_offest = 24./100
-safety_gap = push_offest
+safety_gap = push_offest*.5
 
 backout_cmd_distance = push_offest*2
 backout_speed = -0.3
 
 K1 = 0.3
 K2 = 1
-K1,K2 = .75, 3.
+K1,K2 = .75, 1.5
 max_linear_speed = .15
-angular_turn_speed = .15
+linear_speed_default = .03 # always will at LEAST move linearly this fast
+angular_turn_speed = .18 # always will at LEAST turn this fast
 sigma = 0.01
 sigma = 0.0025 # tolerance for distance from waypoint
 # sigma_proportional_ctrl = 0.07
-sigma_ang = 0.05
-sigma_ang_rad = 0.05
+sigma_ang = 0.03
+#sigma_ang_rad = 0.05
 
 class backout_cmd_obj_class:
   def finished(self, tb_coord, crate_coord):
@@ -106,7 +107,10 @@ def calc_waypoints(tb_coord, crate_coord, destination_coord):
   print("PRE_PUSH_COORD:", pre_push0_coord)
 
   # note that pre_push0_coord is our 1st destination our tb must reach without touching the crate
-  pp0c_to_crate_direction = round((crate_coord[0] - pre_push0_coord[0])/abs(crate_coord[0] - pre_push0_coord[0]))
+  if crate_coord[0] - pre_push0_coord[0] != 0:
+    pp0c_to_crate_direction = round((crate_coord[0] - pre_push0_coord[0])/abs(crate_coord[0] - pre_push0_coord[0]))
+  else:
+    pp0c_to_crate_direction = 1
   delta_0 = tb_coord[0] - pre_push0_coord[0]
 
   if pp0c_to_crate_direction * (delta_0) > 0: #crate and turtlebot on same side w.r.t. prepush point
@@ -205,7 +209,8 @@ def controller(turtlebot_frame, board_grid_frame, board_block_frame, field_grid_
       print("tb lattice coord", lattice_tb_coord)
       print("distance_y:", crate_coord[1] - tb_coord[1])
       if prev_block_coord is None:
-        prev_block_coord = lattice_block_coord
+        #prev_block_coord = lattice_block_coord
+        raw_input("type 'enter' when ready")
       block_moved = (lattice_block_coord != prev_block_coord) 
 
       #if block moves, plan new path ie. update waypoints
@@ -245,7 +250,8 @@ def controller(turtlebot_frame, board_grid_frame, board_block_frame, field_grid_
           # print("angle to waypoint: ", angle_to_wp)
           if abs(wp_in_tb_frame[1]) <= sigma_ang: # roughly lined up 
           # if abs(angle_to_wp) <= sigma_ang_rad:
-            control_command = [K1 * wp_in_tb_frame[0], 0] #Proportional linear control
+            direction = wp_in_tb_frame[0] / abs(wp_in_tb_frame[0]) if wp_in_tb_frame[0] != 0 else 0
+            control_command = [(linear_speed_default * direction) + (K1 * wp_in_tb_frame[0]), 0] #Proportional linear control
           else: # only turn
             direction = wp_in_tb_frame[1] / abs(wp_in_tb_frame[1]) if wp_in_tb_frame[1] != 0 else 0
             control_command = [0, (angular_turn_speed * direction) + (K2 * wp_in_tb_frame[1])] #Proportional angle control
